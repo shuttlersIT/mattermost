@@ -1,0 +1,152 @@
+version: "3.9"
+
+services:
+  postgres_mattermost:
+    image: postgres:14-alpine
+    container_name: postgres_mattermost
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 200
+    ports:
+      - "5431:5432"
+    networks:
+      - it-net
+    volumes:
+      - postgres_db:/var/lib/postgresql/data
+    expose:
+      - 5432
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - ALLOW_UNSAFE_LOCALE=true
+      - POSTGRES_DB=mattermost
+      - POSTGRES_USER=mattermost
+      - POSTGRES_PASSWORD=itrootpassword
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+      - TZ=Africa/Lagos
+    tmpfs:
+      - /tmp
+
+  mattermost:
+    depends_on:
+      - postgres_mattermost
+    image: mattermost/mattermost-enterprise-edition:latest
+    container_name: mattermost
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    networks:
+      - it-net
+    tmpfs:
+      - /tmp
+    volumes:
+      - mattermost_config:/mattermost/config   
+      - mattermost_data:/mattermost/data   
+      - mattermost_logs:/mattermost/logs   
+      - mattermost_plugins:/mattermost/plugins
+      - mattermost_client_plugins:/mattermost/client/plugins
+      - mattermost_bleve:/mattermost/bleve-indexes
+    environment:
+      # PRODUCTION
+      - MM_CONFIGENVIRONMENT=Production
+      # ADMIN
+      - MM_ADMIN_USERNAME=itsupport
+      - MM_ADMIN_PASSWORD=itrootpassword1
+      - MM_ADMIN_EMAIL=itsupport@shuttlers.ng
+      - MM_ADMIN_FIRSTNAME=SHUTTLERS
+      - MM_ADMIN_LASTNAME=IT
+      # Team
+      - MM_TEAMSETTINGS_ENABLETEAMCREATION=true
+      - MM_TEAMSETTINGS_TEAMLINKDISPLAYNAME=Teams
+      - MM_TEAMSETTINGS_MAXPRIVATEUSERTEAMS=10
+      - MM_TEAMSETTINGS_MAXPUBLICTEAMS=100
+      # SQL Service
+      - MM_SQLSETTINGS_DRIVERNAME=postgres
+      - MM_SQLSETTINGS_DATASOURCE=postgres://mattermost:itrootpassword@postgres_mattermost:5432/mattermost?sslmode=disable&connect_timeout=10
+      - MM_SQLSETTINGS_MAXOPENCONNS=10
+      - MM_SQLSETTINGS_MAXIDLECONNS=10
+      - MM_SQLSETTINGS_CONNMAXLIFETIME=30s
+      - MM_SQLSETTINGS_AUTOCOMMIT=false
+      - MM_SQLSETTINGS_LOGSOURCETIMELIMIT=1800
+      - MM_SQLSETTINGS_LOGQUERYTIME=true
+      - MM_SQLSETTINGS_QUERYTIMEOUT=30
+      - MM_SQLSETTINGS_DISABLEPARAMLOG=false
+      #SERVICE SETTINGS
+      - MM_BLEVESETTINGS_INDEXDIR=/mattermost/bleve-indexes
+      - MM_SERVICESETTINGS_SITEURL=https://mattermost.shuttlers.africa/websocket
+      - MM_SERVICESETTINGS_WEBSOCKETURL=wss://mattermost.shuttlers.africa/websocket
+      - MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS='all'
+      - MM_SERVICESETTINGS_WEBRTCENABLE=true
+      - MM_SERVICESETTINGS_TIMEZONE=UTC+1
+      - MM_SERVICESETTINGS_READIMEOUT=30000
+      - MM_SERVICESETTINGS_WRITEIMEOUT=30000
+      - MM_SERVICESETTINGS_MAXIMUMLOGINATTEMPTS=10
+      - MM_SERVICESETTINGS_BRANDNAME=Mattermost
+      - MM_SERVICESETTINGS_ENABLEONLYOFFICE=true
+      # FILE SETTINGS
+      - MM_FILESETTINGS_DRIVERNAME=local
+      - MM_FILESETTINGS_DIRECTORY=/mattermost/data
+      - MM_METRICSSETTINGS_ENABLE=true
+      # LOG
+      - MM_LOGSETTINGS_ENABLECONSOLE=true
+      - MM_LOGSETTINGS_ENABLEFILE=true
+      - MM_LOGSETTINGS_FILELEVEL=INFO
+      - MM_LOGSETTINGS_CONSOLELEVEL=INFO
+      - MM_LOGSETTINGS_ENABLED=true
+      - MM_LOGSETTINGS_FILEFORMAT=text
+      - MM_LOGSETTINGS_FILELOCATION=mattermost.log
+      - MM_LOGSETTINGS_ROTATE=false
+      - MM_LOGSETTINGS_ROTATEONSTART=false
+      - MM_LOGSETTINGS_ROTATEONLINE=false
+      - MM_LOGSETTINGS_ROTATEAGE=30
+      - MM_LOGSETTINGS_ROTATEKEEP=30
+      - MM_LOGSETTINGS_ENABLEDISTRIBUTED=false
+      # PASSWORD CONTROL
+      - MM_PASSWORDSETTINGS_MINLENGTH=6
+      - MM_PASSWORDSETTINGS_MINLOWERCASE=1
+      - MM_PASSWORDSETTINGS_MINNUMBER=1
+      - MM_PASSWORDSETTINGS_MINSYMBOL=0
+      - MM_PASSWORDSETTINGS_MINUPPERCASE=0
+      - MM_PASSWORDSETTINGS_REJECTCOMMONPASSWORDS=false
+      - MM_PASSWORDSETTINGS_REJECTDICTIONARYWORDS=false
+      - MM_PASSWORDSETTINGS_REJECTUSERNAMES=false
+      # RATES
+      - MM_RATELIMITSETTINGS_ENABLE=false
+      - MM_RATELIMITSETTINGS_PERSEC=10
+      - MM_RATELIMITSETTINGS_MAXBURST=100
+      # JOBS
+      - MM_JOBSETTINGS_RUNJOBS=true
+      - MM_JOBSETTINGS_RUNSCHEDULER=true
+      - MM_JOBSETTINGS_RUNNERPOOLSIZE=10
+      - MM_JOBSETTINGS_FREQUENCY=1m
+      # PLUGINS
+      - MM_PLUGINSETTINGS_ENABLE=true
+      - MM_PLUGINSETTINGS_PLUGINS=com.mattermost.apps,playbooks,focalboard,com.mattermost.calls
+      - MM_PLUGINSETTINGS_DIRECTORY=/mattermost/plugins
+      - MM_PLUGINSETTINGS_CLIENTDIRECTORY=/mattermost/client/plugins
+      # GOOGLE
+      - MM_SERVICESETTINGS_GOOGLEENABLED=true
+      - MM_SERVICESETTINGS_GOOGLEKEY=946670882701-m2abv211cro66d5iho0rt2j8oth3670f.apps.googleusercontent.com
+      - MM_SERVICESETTINGS_GOOGLESECRET=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
+      - MM_SERVICESETTINGS_GOOGLEALLOWEDDOMAINS=*.shuttlers.africa
+      - MM_SERVICESETTINGS_GOOGLESCOPE=https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile
+      - MM_SERVICESETTINGS_GOOGLEAUTHORIZATIONURL=https://accounts.google.com/o/oauth2/auth
+      - MM_SERVICESETTINGS_GOOGLETOKENURL=https://oauth2.googleapis.com/token
+
+    ports:
+      - 127.0.0.1:8065:8065
+
+volumes:
+  postgres_db:
+  mattermost_config:
+  mattermost_data:
+  mattermost_logs:
+  mattermost_plugins:
+  mattermost_client_plugins:
+  mattermost_bleve:
+
+networks:
+  it-net:
+    external: true
+    driver: bridge
